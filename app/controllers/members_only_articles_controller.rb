@@ -1,20 +1,34 @@
 class MembersOnlyArticlesController < ApplicationController
-  rescue_from ActiveRecord::RecordNotFound, with: :record_not_found
+  before_action :authenticate_user
 
   def index
-    articles = Article.where(is_member_only: true).includes(:user).order(created_at: :desc)
-    render json: articles, each_serializer: ArticleListSerializer
+    if session[:user_id].present?
+      articles = Article.where(is_member_only: true).includes(:user).order(created_at: :desc)
+      render json: articles, each_serializer: ArticleListSerializer
+    else
+      render json: { error: "Not authorized" }, status: :unauthorized
+    end
   end
 
   def show
-    article = Article.find(params[:id])
-    render json: article
+    if session[:user_id].present?
+      article = Article.find_by(id: params[:id], is_member_only: true)
+
+      if article
+        render json: article
+      else
+        render json: { error: "Member-only article not found" }, status: :not_found
+      end
+    else
+      render json: { error: "Not authorized" }, status: :unauthorized
+    end
   end
 
   private
 
-  def record_not_found
-    render json: { error: "Article not found" }, status: :not_found
+  def authenticate_user
+    unless session[:user_id].present?
+      render json: { error: "Not authorized" }, status: :unauthorized
+    end
   end
-
 end
